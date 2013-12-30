@@ -55,4 +55,6 @@ public interface AndroidWallpaperListener {
 	 * 
 	 */
 	abstract void previewStateChange (boolean isPreview);
+
+	abstract void visibilityChanged (boolean visible);
 }

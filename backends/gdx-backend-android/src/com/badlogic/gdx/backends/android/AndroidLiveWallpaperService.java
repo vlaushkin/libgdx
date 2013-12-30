@@ -444,6 +444,10 @@ public abstract class AndroidLiveWallpaperService extends WallpaperService {
 					onResume();
 				else
 					onPause();
+
+				AndroidLiveWallpaper currentApp = app;		// without this app can crash when fast switching between engines (tested!)
+				if (currentApp != null)
+					((AndroidWallpaperListener)currentApp.listener).visibilityChanged(this.engineIsVisible);
 			}
 			else {
 				if (DEBUG) Log.d(TAG, " > visible state is current, skipping visibilityChanged event!");
