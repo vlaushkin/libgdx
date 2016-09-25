@@ -114,11 +114,10 @@ public class XmlReader {
 					while (data[p - 2] != ']' || data[p - 1] != ']' || data[p] != '>')
 						p++;
 					text(new String(data, s, p - s - 2));
-				} else if(c == '!' && data[s + 1] == '-' && data[s + 2] == '-') {
-					// from http://www.w3.org/TR/REC-xml/#syntax
-					// Comment ::= '<!--' ((Char - '-') | ('-' (Char - '-')))* '-->'
+				} else if (c == '!' && data[s + 1] == '-' && data[s + 2] == '-') {
 					p = s + 3;
-					while (data[p] != '-' || data[p + 1] != '-' || data[p + 2] != '>') p++;
+					while (data[p] != '-' || data[p + 1] != '-' || data[p + 2] != '>')
+						p++;
 					p += 2;
 				} else
 					while (data[p] != '>') p++;
@@ -230,6 +229,7 @@ public class XmlReader {
 		if (name.equals("amp")) return "&";
 		if (name.equals("apos")) return "'";
 		if (name.equals("quot")) return "\"";
+		if (name.startsWith("#x")) return Character.toString((char)Integer.parseInt(name.substring(2), 16));
 		return null;
 	}
 
@@ -265,9 +265,9 @@ public class XmlReader {
 
 		/** @throws GdxRuntimeException if the attribute was not found. */
 		public String getAttribute (String name) {
-			if (attributes == null) throw new GdxRuntimeException("Element " + name + " doesn't have attribute: " + name);
+			if (attributes == null) throw new GdxRuntimeException("Element " + this.name + " doesn't have attribute: " + name);
 			String value = attributes.get(name);
-			if (value == null) throw new GdxRuntimeException("Element " + name + " doesn't have attribute: " + name);
+			if (value == null) throw new GdxRuntimeException("Element " + this.name + " doesn't have attribute: " + name);
 			return value;
 		}
 

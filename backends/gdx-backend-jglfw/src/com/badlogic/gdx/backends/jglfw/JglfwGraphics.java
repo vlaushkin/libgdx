@@ -1,12 +1,12 @@
 /*******************************************************************************
  * Copyright 2011 See AUTHORS file.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,16 +18,20 @@ package com.badlogic.gdx.backends.jglfw;
 
 import static com.badlogic.jglfw.Glfw.*;
 
+import com.badlogic.gdx.Application;
 import com.badlogic.gdx.ApplicationListener;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Graphics;
 import com.badlogic.gdx.graphics.Color;
-import com.badlogic.gdx.graphics.GL10;
-import com.badlogic.gdx.graphics.GL11;
+import com.badlogic.gdx.graphics.Cursor;
 import com.badlogic.gdx.graphics.GL20;
-import com.badlogic.gdx.graphics.GLCommon;
+import com.badlogic.gdx.graphics.GL30;
+import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.graphics.Cursor.SystemCursor;
+import com.badlogic.gdx.graphics.glutils.GLVersion;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.GdxRuntimeException;
+import com.badlogic.jglfw.Glfw;
 import com.badlogic.jglfw.GlfwVideoMode;
 import com.badlogic.jglfw.gl.GL;
 
@@ -36,7 +40,11 @@ import java.awt.Toolkit;
 /** An implementation of the {@link Graphics} interface based on GLFW.
  * @author Nathan Sweet */
 public class JglfwGraphics implements Graphics {
-	static int glMajorVersion, glMinorVersion;
+	static final boolean isMac = System.getProperty("os.name").contains("OS X");
+	static final boolean isWindows = System.getProperty("os.name").contains("Windows");
+	static final boolean isLinux = System.getProperty("os.name").contains("Linux");
+
+	static GLVersion glVersion;
 
 	long window;
 	private boolean fullscreen;
@@ -51,13 +59,11 @@ public class JglfwGraphics implements Graphics {
 	private volatile boolean isContinuous = true, renderRequested;
 	volatile boolean foreground, minimized;
 
+	private long frameId = -1;
 	private float deltaTime;
 	private long frameStart, lastTime = -1;
 	private int frames, fps;
 
-	private GLCommon gl;
-	private JglfwGL10 gl10;
-	private JglfwGL11 gl11;
 	private JglfwGL20 gl20;
 
 	public JglfwGraphics (JglfwApplicationConfiguration config) {
@@ -82,25 +88,23 @@ public class JglfwGraphics implements Graphics {
 		}
 
 		// Create GL.
-		String version = GL.glGetString(GL11.GL_VERSION);
-		glMajorVersion = Integer.parseInt("" + version.charAt(0));
-		glMinorVersion = Integer.parseInt("" + version.charAt(2));
-		if (config.useGL20 && (glMajorVersion >= 2 || version.contains("2.1"))) { // special case for MESA, wtf...
-			gl20 = new JglfwGL20();
-			gl = gl20;
-		} else {
-			gl20 = null;
-			if (glMajorVersion == 1 && glMinorVersion < 5)
-				gl10 = new JglfwGL10();
-			else {
-				gl11 = new JglfwGL11();
-				gl10 = gl11;
+		String versionString = GL.glGetString(GL20.GL_VERSION);
+		String vendorString = GL.glGetString(GL20.GL_VENDOR);
+		String rendererString = GL.glGetString(GL20.GL_RENDERER);
+		glVersion = new GLVersion(Application.ApplicationType.Desktop, versionString, vendorString, rendererString);
+
+
+		if (glVersion.getMajorVersion() <= 1)
+			throw new GdxRuntimeException("OpenGL 2.0 or higher with the FBO extension is required. OpenGL version: " + glVersion.getMajorVersion() + ":" + glVersion.getMinorVersion());
+		if (glVersion.getMajorVersion() == 2) {
+			if (!supportsExtension("GL_EXT_framebuffer_object") && !supportsExtension("GL_ARB_framebuffer_object")) {
+				throw new GdxRuntimeException("OpenGL 2.0 or higher with the FBO extension is required. OpenGL version: " + glVersion.getMajorVersion() + ":" + glVersion.getMinorVersion()
+					+ ", FBO extension: false");
 			}
-			gl = gl10;
 		}
-		Gdx.gl = gl;
-		Gdx.gl10 = gl10;
-		Gdx.gl11 = gl11;
+
+		gl20 = new JglfwGL20();
+		Gdx.gl = gl20;
 		Gdx.gl20 = gl20;
 
 		if (!config.hidden) show();
@@ -133,7 +137,7 @@ public class JglfwGraphics implements Graphics {
 		this.fullscreen = fullscreen;
 		if (!fullscreen) {
 			if (x == -1 || y == -1) {
-				DisplayMode mode = getDesktopDisplayMode();
+				DisplayMode mode = getDisplayMode();
 				x = (mode.width - width) / 2;
 				y = (mode.height - height) / 2;
 			}
@@ -160,10 +164,13 @@ public class JglfwGraphics implements Graphics {
 			frameStart = time;
 		}
 		frames++;
+		frameId++;
 	}
 
 	void sizeChanged (int width, int height) {
-		glfwShowWindow(window); // This is required to refresh the NSOpenGLContext on OSX!
+		if (isMac) {
+			glfwShowWindow(window); // This is required to refresh the NSOpenGLContext on OSX!
+		}
 		width = Math.max(1, width);
 		height = Math.max(1, height);
 		this.width = width;
@@ -179,24 +186,8 @@ public class JglfwGraphics implements Graphics {
 		this.y = y;
 	}
 
-	public boolean isGL11Available () {
-		return gl11 != null;
-	}
-
 	public boolean isGL20Available () {
 		return gl20 != null;
-	}
-
-	public GLCommon getGLCommon () {
-		return gl;
-	}
-
-	public GL10 getGL10 () {
-		return gl10;
-	}
-
-	public GL11 getGL11 () {
-		return gl11;
 	}
 
 	public GL20 getGL20 () {
@@ -209,6 +200,20 @@ public class JglfwGraphics implements Graphics {
 
 	public int getHeight () {
 		return height;
+	}
+
+	@Override
+	public int getBackBufferWidth () {
+		return width;
+	}
+
+	@Override
+	public int getBackBufferHeight () {
+		return height;
+	}
+
+	public long getFrameId () {
+		return frameId;
 	}
 
 	public float getDeltaTime () {
@@ -225,6 +230,10 @@ public class JglfwGraphics implements Graphics {
 
 	public GraphicsType getType () {
 		return GraphicsType.JGLFW;
+	}
+
+	public GLVersion getGLVersion () {
+		return glVersion;
 	}
 
 	public float getPpiX () {
@@ -264,6 +273,31 @@ public class JglfwGraphics implements Graphics {
 		return true;
 	}
 
+	@Override
+	public Monitor getPrimaryMonitor () {
+		return new JglfwMonitor(0, 0, "Primary Monitor");
+	}
+
+	@Override
+	public Monitor getMonitor () {
+		return getPrimaryMonitor();
+	}
+
+	@Override
+	public Monitor[] getMonitors () {
+		return new Monitor[] { getPrimaryMonitor() };
+	}
+
+	@Override
+	public DisplayMode[] getDisplayModes (Monitor monitor) {
+		return getDisplayModes();
+	}
+
+	@Override
+	public DisplayMode getDisplayMode (Monitor monitor) {
+		return getDisplayMode();
+	}
+
 	private long getWindowMonitor () {
 		if (window != 0) {
 			long monitor = glfwGetWindowMonitor(window);
@@ -279,12 +313,12 @@ public class JglfwGraphics implements Graphics {
 		return modes.toArray(DisplayMode.class);
 	}
 
-	public DisplayMode getDesktopDisplayMode () {
+	public DisplayMode getDisplayMode () {
 		GlfwVideoMode mode = glfwGetVideoMode(getWindowMonitor());
 		return new JglfwDisplayMode(mode.width, mode.height, 0, mode.redBits + mode.greenBits + mode.blueBits);
 	}
 
-	public boolean setDisplayMode (DisplayMode displayMode) {
+	public boolean setFullscreenMode (DisplayMode displayMode) {
 		bufferFormat = new BufferFormat( //
 			displayMode.bitsPerPixel == 16 ? 5 : 8, //
 			displayMode.bitsPerPixel == 16 ? 6 : 8, //
@@ -295,7 +329,8 @@ public class JglfwGraphics implements Graphics {
 		return success;
 	}
 
-	public boolean setDisplayMode (int width, int height, boolean fullscreen) {
+	public boolean setWindowedMode (int width, int height) {
+		boolean fullscreen = false;
 		if (fullscreen || this.fullscreen) {
 			boolean success = createWindow(width, height, fullscreen);
 			if (success && fullscreen) sizeChanged(width, height);
@@ -310,6 +345,22 @@ public class JglfwGraphics implements Graphics {
 		if (title == null) title = "";
 		glfwSetWindowTitle(window, title);
 		this.title = title;
+	}
+
+	/**
+	 * Note: GLFW requires that the window be recreated for this change to take effect.
+	 */
+	@Override
+	public void setUndecorated (boolean undecorated) {
+		this.undecorated = undecorated;
+	}
+
+	/**
+	 * Note: GLFW requires that the window be recreated for this change to take effect.
+	 */
+	@Override
+	public void setResizable (boolean resizable) {
+		this.resizable = resizable;
 	}
 
 	public void setVSync (boolean vsync) {
@@ -369,7 +420,7 @@ public class JglfwGraphics implements Graphics {
 		glfwShowWindow(window);
 
 		Gdx.gl.glClearColor(initialBackgroundColor.r, initialBackgroundColor.g, initialBackgroundColor.b, initialBackgroundColor.a);
-		Gdx.gl.glClear(GL10.GL_COLOR_BUFFER_BIT);
+		Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 		glfwSwapBuffers(window);
 	}
 
@@ -401,9 +452,38 @@ public class JglfwGraphics implements Graphics {
 		}
 	}
 
+	@Override
+	public boolean isGL30Available () {
+		return false;
+	}
+
+	@Override
+	public GL30 getGL30 () {
+		return null;
+	}
+
+	@Override
+	public Cursor newCursor (Pixmap pixmap, int xHotspot, int yHotspot) {
+		return null;
+	}
+
+	@Override
+	public void setCursor (Cursor cursor) {
+	}
+
+	@Override
+	public void setSystemCursor (SystemCursor systemCursor) {
+	}
+
 	static class JglfwDisplayMode extends DisplayMode {
 		protected JglfwDisplayMode (int width, int height, int refreshRate, int bitsPerPixel) {
 			super(width, height, refreshRate, bitsPerPixel);
+		}
+	}
+
+	static class JglfwMonitor extends Monitor {
+		public JglfwMonitor (int virtualX, int virtualY, String name) {
+			super(virtualX, virtualY, name);
 		}
 	}
 }

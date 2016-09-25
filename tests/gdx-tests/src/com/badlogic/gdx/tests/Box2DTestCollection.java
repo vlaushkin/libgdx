@@ -31,6 +31,7 @@ import com.badlogic.gdx.tests.box2d.Cantilever;
 import com.badlogic.gdx.tests.box2d.Chain;
 import com.badlogic.gdx.tests.box2d.CharacterCollision;
 import com.badlogic.gdx.tests.box2d.CollisionFiltering;
+import com.badlogic.gdx.tests.box2d.ContactListenerTest;
 import com.badlogic.gdx.tests.box2d.ContinuousTest;
 import com.badlogic.gdx.tests.box2d.ConveyorBelt;
 import com.badlogic.gdx.tests.box2d.DebugRendererTest;
@@ -115,11 +116,6 @@ public class Box2DTestCollection extends GdxTest implements InputProcessor, Gest
 	}
 
 	@Override
-	public boolean needsGL20 () {
-		return false;
-	}
-
-	@Override
 	public boolean mouseMoved (int x, int y) {
 		return false;
 	}
@@ -174,5 +170,9 @@ public class Box2DTestCollection extends GdxTest implements InputProcessor, Gest
 	@Override
 	public boolean pinch (Vector2 initialFirstPointer, Vector2 initialSecondPointer, Vector2 firstPointer, Vector2 secondPointer) {
 		return false;
+	}
+
+	@Override
+	public void pinchStop () {
 	}
 }

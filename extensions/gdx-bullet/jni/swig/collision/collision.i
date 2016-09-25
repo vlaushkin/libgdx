@@ -23,8 +23,6 @@
 %include "../../swig-src/linearmath/classes.i"
 
 %ignore btManifoldPoint::getLifeTime;
-%ignore btManifoldPoint::getPositionWorldOnA;
-%ignore btManifoldPoint::getPositionWorldOnB;
 %ignore btManifoldPoint::getAppliedImpulse;
 %ignore btVoronoiSimplexSolver::setEqualVertexThreshold;
 %ignore btVoronoiSimplexSolver::getEqualVertexThreshold;
@@ -58,7 +56,10 @@ import com.badlogic.gdx.math.Matrix4;
 // Required because bullet uses a macro for this
 typedef btVoronoiSimplexSolver btSimplexSolverInterface;
 
-%include "./btDiscreteCollisionDetectorInterface.i"
+%{
+#include <BulletCollision/NarrowPhaseCollision/btDiscreteCollisionDetectorInterface.h>
+%}
+%include "BulletCollision/NarrowPhaseCollision/btDiscreteCollisionDetectorInterface.h"
 
 %include "./btCollisionShape.i"
 
@@ -75,25 +76,16 @@ CREATE_POOLED_OBJECT(btBroadphasePair, com/badlogic/gdx/physics/bullet/collision
 %include "BulletCollision/BroadphaseCollision/btBroadphaseInterface.h"
 
 %{
-#include <BulletCollision/BroadphaseCollision/btDbvt.h>
-%}
-%include "BulletCollision/BroadphaseCollision/btDbvt.h"
-
-%{
 #include <BulletCollision/BroadphaseCollision/btQuantizedBvh.h>
 %}
 %include "BulletCollision/BroadphaseCollision/btQuantizedBvh.h"
-
-%{
-#include <BulletCollision/BroadphaseCollision/btDbvtBroadphase.h>
-%}
-%include "BulletCollision/BroadphaseCollision/btDbvtBroadphase.h"
 
 %{
 #include <BulletCollision/BroadphaseCollision/btSimpleBroadphase.h>
 %}
 %include "BulletCollision/BroadphaseCollision/btSimpleBroadphase.h"
 
+%ignore btMultiSapBroadphase::btMultiSapProxy::m_bridgeProxies;
 %{
 #include <BulletCollision/BroadphaseCollision/btMultiSapBroadphase.h>
 void btMultiSapBroadphase::quicksort(btBroadphasePairArray& a, int lo, int hi)
@@ -292,8 +284,6 @@ void btMultiSapBroadphase::quicksort(btBroadphasePairArray& a, int lo, int hi)
 %}
 %include "BulletCollision/CollisionShapes/btUniformScalingShape.h"
 
-%include "./btCompoundShape.i"
-
 %{
 #include <BulletCollision/CollisionShapes/btConvexPointCloudShape.h>
 %}
@@ -305,6 +295,8 @@ void btMultiSapBroadphase::quicksort(btBroadphasePairArray& a, int lo, int hi)
 %include "BulletCollision/CollisionShapes/btConvex2dShape.h"
 
 %include "./btCollisionObject.i"
+%include "./btDbvt.i"
+%include "./btCompoundShape.i"
 
 %template(btCollisionObjectArray) btAlignedObjectArray<btCollisionObject *>;
 %template(btCollisionObjectConstArray) btAlignedObjectArray<const btCollisionObject*>;
@@ -529,8 +521,12 @@ void btMultiSapBroadphase::quicksort(btBroadphasePairArray& a, int lo, int hi)
 
 %include "./btMultiSphereShape.i"
 
+%include "./CustomCollisionDispatcher.i"
+
 %include "./ContactListener.i"
 
 %include "./ContactCache.i"
 
 %include "./btBroadphasePairArray.i"
+
+%include "./gimpact.i"
